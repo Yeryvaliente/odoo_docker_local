@@ -1,0 +1,24 @@
+# Core dependencies for Odoo modules
+pyTelegramBotAPI==4.29.1
+packaging
+sentry-sdk==2.37.0
+
+# PDF compression
+pikepdf
+
+# Debugging tools
+debugpy
+ipdb
+pudb
+
+# Development tools
+watchdog
+
+# Testing tools
+pytest
+pytest-odoo
+coverage
+
+# Product Search Embeddings dependencies
+numpy>=1.24.0
+google-genai>=0.3.0

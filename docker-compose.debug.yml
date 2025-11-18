@@ -1,0 +1,9 @@
+services:
+  odoo:
+    command: ["odoo", "debug"]  # Modo debug sin esperar cliente
+    volumes:
+      - ./odoo-debug.conf:/etc/odoo/odoo.conf:ro  # Configuración específica para debug
+    ports:
+      - "8069:8069"
+      - "8072:8072"
+      - "5678:5678"  # Puerto de debugging Python
