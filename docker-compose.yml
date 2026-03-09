@@ -2,6 +2,7 @@ services:
   postgres:
     container_name: odoo-dev-postgres
     image: pgvector/pgvector:pg16
+    # image: postgres:16.6
     environment:
       - POSTGRES_DB=odoo_18
       - POSTGRES_USER=odoo
@@ -65,7 +66,7 @@ services:
     restart: unless-stopped
     stdin_open: true  # Para debugging interactivo
     tty: true
-    command: ["odoo"]  # Modo normal por defecto
+    command: ["odoo", "--dev=all"]  # Modo desarrollo - recarga XML/QWeb sin reiniciar
     networks:
       - odoo-dev-network
 

@@ -33,6 +33,7 @@ RUN apt-get update && \
         libssl-dev \
         node-less \
         npm \
+        python3-numpy \
         python3-magic \
         python3-num2words \
         python3-odf \
@@ -89,11 +90,11 @@ RUN mkdir -p /usr/share/GeoIP && \
     rm -f /tmp/GeoLite2-City.mmdb
 
 # Install Odoo
-# Original version from external repository (commented for local testing)
-# ADD https://external-resources-techrrific.s3.us-east-1.amazonaws.com/odoo/odoo_18.0.e.20250915_all.deb /tmp/odoo.deb
+# Original version from external repository
+#ADD https://external-resources-techrrific.s3.us-east-1.amazonaws.com/odoo/odoo_18.0.e.20251202_all.deb /tmp/odoo.deb
 
-# Local .deb file for testing (uncomment and modify path as needed)
-COPY ./odoo_18.0+e.20251106_all.deb /tmp/odoo.deb
+# Local .deb file for testing (commented - use for local development)
+ COPY ./odoo_18.0+e.20260218_all.deb /tmp/odoo.deb
 
 RUN apt-get update \
     && apt-get -y install --no-install-recommends /tmp/odoo.deb \

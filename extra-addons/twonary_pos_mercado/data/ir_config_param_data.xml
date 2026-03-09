@@ -1,9 +1,0 @@
-<odoo>
-    <data noupdate="1">
-        <!-- mercado api-->
-        <record id="ir_config_parameter_mercado_api_token" model="ir.config_parameter">
-            <field name="key">mercado.api.token</field>
-            <field name="value">YXBwX2RlbGl2ZXJ5X3Byb2Rfc2VjcmV0|b97bbb6e21113fcd2876ed6c3442bdf51bdc77b446c585f2bb1c7a61ba77c9af?YXBwX2NsbF9wcm9kX2NsaWVudA==|32b4457772f8cb61624012e1f84d039641afe350d50fd72913b540ff96faae84</field>
-        </record>
-    </data>
-</odoo>
