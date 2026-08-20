@@ -1,0 +1,134 @@
+GroupAggregate  (cost=82995.96..82999.34 rows=25 width=44) (actual time=29.502..29.592 rows=84 loops=1)
+  Group Key: sq.product_id, wl.warehouse_id, wl.company_id
+  Filter: ((COALESCE(sum(sq.quantity), '0'::numeric) > '0'::numeric) OR (COALESCE(max(om.outgoing_qty), '0'::numeric) > '0'::numeric) OR (COALESCE(max(aim.all_incoming_qty), '0'::numeric) > '0'::numeric))
+  Buffers: shared hit=106225
+  CTE warehouse_locations
+    ->  Nested Loop  (cost=0.28..432.28 rows=70 width=12) (actual time=0.138..1.408 rows=6 loops=1)
+          Join Filter: ((sl.id = wh_loc.id) OR ((sl.parent_path)::text ~~ ((wh_loc.parent_path)::text || '%'::text)))
+          Rows Removed by Join Filter: 12948
+          Buffers: shared hit=107
+          ->  Seq Scan on stock_location sl  (cost=0.00..100.19 rows=2163 width=16) (actual time=0.002..0.227 rows=2159 loops=1)
+                Filter: ((usage)::text = 'internal'::text)
+                Rows Removed by Filter: 416
+                Buffers: shared hit=68
+          ->  Materialize  (cost=0.28..72.54 rows=6 width=24) (actual time=0.000..0.000 rows=6 loops=2159)
+                Buffers: shared hit=39
+                ->  Nested Loop  (cost=0.28..72.51 rows=6 width=24) (actual time=0.020..0.032 rows=6 loops=1)
+                      Buffers: shared hit=39
+                      ->  Seq Scan on stock_warehouse sw  (cost=0.00..26.72 rows=6 width=12) (actual time=0.018..0.027 rows=6 loops=1)
+                            Filter: (id = ANY ('{1,110,111,112,113,114}'::integer[]))
+                            Rows Removed by Filter: 321
+                            Buffers: shared hit=21
+                      ->  Index Scan using stock_location_pkey on stock_location wh_loc  (cost=0.28..7.63 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=6)
+                            Index Cond: (id = sw.lot_stock_id)
+                            Buffers: shared hit=18
+  ->  Incremental Sort  (cost=82563.68..82565.71 rows=35 width=81) (actual time=29.500..29.552 rows=168 loops=1)
+        Sort Key: sq.product_id, wl.warehouse_id, wl.company_id
+        Presorted Key: sq.product_id, wl.warehouse_id
+        Full-sort Groups: 6  Sort Method: quicksort  Average Memory: 26kB  Peak Memory: 26kB
+        Buffers: shared hit=106225
+        ->  Merge Left Join  (cost=82563.66..82564.13 rows=35 width=81) (actual time=29.486..29.534 rows=168 loops=1)
+              Merge Cond: ((sq.product_id = aim.product_id) AND (wl.warehouse_id = aim.warehouse_id))
+              Buffers: shared hit=106225
+              ->  Merge Left Join  (cost=41403.46..41403.74 rows=35 width=49) (actual time=6.181..6.209 rows=168 loops=1)
+                    Merge Cond: ((sq.product_id = om.product_id) AND (wl.warehouse_id = om.warehouse_id))
+                    Buffers: shared hit=2829
+                    ->  Sort  (cost=244.14..244.22 rows=35 width=17) (actual time=1.507..1.513 rows=168 loops=1)
+                          Sort Key: sq.product_id, wl.warehouse_id
+                          Sort Method: quicksort  Memory: 32kB
+                          Buffers: shared hit=233
+                          ->  Hash Join  (cost=62.77..243.24 rows=35 width=17) (actual time=1.440..1.491 rows=168 loops=1)
+                                Hash Cond: (sq.location_id = wl.location_id)
+                                Buffers: shared hit=233
+                                ->  Bitmap Heap Scan on stock_quant sq  (cost=60.49..240.39 rows=60 width=13) (actual time=0.015..0.066 rows=190 loops=1)
+                                      Recheck Cond: (product_id = ANY ('{304,305,306,307,308,309,310,311,314,379,380,381,382,383}'::integer[]))
+                                      Heap Blocks: exact=98
+                                      Buffers: shared hit=126
+                                      ->  Bitmap Index Scan on stock_quant__product_id_index  (cost=0.00..60.45 rows=60 width=0) (actual time=0.010..0.011 rows=344 loops=1)
+                                            Index Cond: (product_id = ANY ('{304,305,306,307,308,309,310,311,314,379,380,381,382,383}'::integer[]))
+                                            Buffers: shared hit=28
+                                ->  Hash  (cost=1.40..1.40 rows=70 width=12) (actual time=1.409..1.409 rows=6 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                      Buffers: shared hit=107
+                                      ->  CTE Scan on warehouse_locations wl  (cost=0.00..1.40 rows=70 width=12) (actual time=0.139..1.407 rows=6 loops=1)
+                                            Buffers: shared hit=107
+                    ->  Sort  (cost=41159.32..41159.33 rows=1 width=40) (actual time=4.673..4.677 rows=84 loops=1)
+                          Sort Key: om.product_id, om.warehouse_id
+                          Sort Method: quicksort  Memory: 28kB
+                          Buffers: shared hit=2596
+                          ->  Subquery Scan on om  (cost=41159.28..41159.31 rows=1 width=40) (actual time=4.404..4.664 rows=84 loops=1)
+                                Buffers: shared hit=2596
+                                ->  GroupAggregate  (cost=41159.28..41159.30 rows=1 width=40) (actual time=4.404..4.660 rows=84 loops=1)
+                                      Group Key: wl_1.warehouse_id, sm.product_id
+                                      Buffers: shared hit=2596
+                                      ->  Sort  (cost=41159.28..41159.28 rows=1 width=13) (actual time=4.399..4.474 rows=3360 loops=1)
+                                            Sort Key: wl_1.warehouse_id, sm.product_id
+                                            Sort Method: quicksort  Memory: 228kB
+                                            Buffers: shared hit=2596
+                                            ->  Hash Anti Join  (cost=4250.58..41159.27 rows=1 width=13) (actual time=1.274..4.081 rows=3360 loops=1)
+                                                  Hash Cond: ((wl_1.warehouse_id = wl2.warehouse_id) AND (sm.location_dest_id = wl2.location_id))
+                                                  Buffers: shared hit=2596
+                                                  ->  Hash Join  (cost=4248.13..41056.47 rows=13380 width=17) (actual time=1.272..3.884 rows=3360 loops=1)
+                                                        Hash Cond: (sm.location_id = wl_1.location_id)
+                                                        Buffers: shared hit=2596
+                                                        ->  Bitmap Heap Scan on stock_move sm  (cost=4245.86..40870.22 rows=13380 width=17) (actual time=0.829..3.185 rows=20206 loops=1)
+                                                              Recheck Cond: ((product_id = ANY ('{304,305,306,307,308,309,310,311,314,379,380,381,382,383}'::integer[])) AND ((state)::text = ANY ('{waiting,confirmed,assigned,partially_available}'::text[])))
+                                                              Heap Blocks: exact=1816
+                                                              Buffers: shared hit=2596
+                                                              ->  Bitmap Index Scan on stock_move_product_location_index  (cost=0.00..4242.48 rows=13380 width=0) (actual time=0.753..0.753 rows=20206 loops=1)
+                                                                    Index Cond: ((product_id = ANY ('{304,305,306,307,308,309,310,311,314,379,380,381,382,383}'::integer[])) AND ((state)::text = ANY ('{waiting,confirmed,assigned,partially_available}'::text[])))
+                                                                    Buffers: shared hit=780
+                                                        ->  Hash  (cost=1.40..1.40 rows=70 width=8) (actual time=0.001..0.002 rows=6 loops=1)
+                                                              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                              ->  CTE Scan on warehouse_locations wl_1  (cost=0.00..1.40 rows=70 width=8) (actual time=0.000..0.001 rows=6 loops=1)
+                                                  ->  Hash  (cost=1.40..1.40 rows=70 width=8) (actual time=0.001..0.002 rows=6 loops=1)
+                                                        Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                        ->  CTE Scan on warehouse_locations wl2  (cost=0.00..1.40 rows=70 width=8) (actual time=0.000..0.001 rows=6 loops=1)
+              ->  Sort  (cost=41160.20..41160.20 rows=1 width=40) (actual time=23.304..23.307 rows=84 loops=1)
+                    Sort Key: aim.product_id, aim.warehouse_id
+                    Sort Method: quicksort  Memory: 28kB
+                    Buffers: shared hit=103396
+                    ->  Subquery Scan on aim  (cost=41160.15..41160.19 rows=1 width=40) (actual time=22.550..23.295 rows=84 loops=1)
+                          Buffers: shared hit=103396
+                          ->  GroupAggregate  (cost=41160.15..41160.18 rows=1 width=40) (actual time=22.549..23.290 rows=84 loops=1)
+                                Group Key: wl_2.warehouse_id, sm_1.product_id
+                                Buffers: shared hit=103396
+                                ->  Sort  (cost=41160.15..41160.16 rows=1 width=13) (actual time=22.539..22.760 rows=10080 loops=1)
+                                      Sort Key: wl_2.warehouse_id, sm_1.product_id
+                                      Sort Method: quicksort  Memory: 778kB
+                                      Buffers: shared hit=103396
+                                      ->  Nested Loop Anti Join  (cost=4251.15..41160.14 rows=1 width=13) (actual time=2.098..21.501 rows=10080 loops=1)
+                                            Buffers: shared hit=103396
+                                            ->  Hash Anti Join  (cost=4250.58..41159.27 rows=1 width=17) (actual time=0.827..5.708 rows=16800 loops=1)
+                                                  Hash Cond: ((wl_2.warehouse_id = wl2_1.warehouse_id) AND (sm_1.location_id = wl2_1.location_id))
+                                                  Buffers: shared hit=2596
+                                                  ->  Hash Join  (cost=4248.13..41056.47 rows=13380 width=21) (actual time=0.824..4.698 rows=16800 loops=1)
+                                                        Hash Cond: (sm_1.location_dest_id = wl_2.location_id)
+                                                        Buffers: shared hit=2596
+                                                        ->  Bitmap Heap Scan on stock_move sm_1  (cost=4245.86..40870.22 rows=13380 width=21) (actual time=0.808..3.307 rows=20206 loops=1)
+                                                              Recheck Cond: ((product_id = ANY ('{304,305,306,307,308,309,310,311,314,379,380,381,382,383}'::integer[])) AND ((state)::text = ANY ('{waiting,confirmed,assigned,partially_available}'::text[])))
+                                                              Heap Blocks: exact=1816
+                                                              Buffers: shared hit=2596
+                                                              ->  Bitmap Index Scan on stock_move_product_location_index  (cost=0.00..4242.48 rows=13380 width=0) (actual time=0.736..0.736 rows=20206 loops=1)
+                                                                    Index Cond: ((product_id = ANY ('{304,305,306,307,308,309,310,311,314,379,380,381,382,383}'::integer[])) AND ((state)::text = ANY ('{waiting,confirmed,assigned,partially_available}'::text[])))
+                                                                    Buffers: shared hit=780
+                                                        ->  Hash  (cost=1.40..1.40 rows=70 width=8) (actual time=0.001..0.002 rows=6 loops=1)
+                                                              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                              ->  CTE Scan on warehouse_locations wl_2  (cost=0.00..1.40 rows=70 width=8) (actual time=0.000..0.001 rows=6 loops=1)
+                                                  ->  Hash  (cost=1.40..1.40 rows=70 width=8) (actual time=0.001..0.001 rows=6 loops=1)
+                                                        Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                        ->  CTE Scan on warehouse_locations wl2_1  (cost=0.00..1.40 rows=70 width=8) (actual time=0.000..0.001 rows=6 loops=1)
+                                            ->  Nested Loop  (cost=0.56..0.86 rows=1 width=4) (actual time=0.001..0.001 rows=0 loops=16800)
+                                                  Buffers: shared hit=100800
+                                                  ->  Index Scan using stock_picking_pkey on stock_picking sp  (cost=0.28..0.35 rows=1 width=8) (actual time=0.000..0.000 rows=1 loops=16800)
+                                                        Index Cond: (id = sm_1.picking_id)
+                                                        Buffers: shared hit=50400
+                                                  ->  Index Scan using stock_picking_type_pkey on stock_picking_type spt  (cost=0.28..0.51 rows=1 width=4) (actual time=0.000..0.000 rows=0 loops=16800)
+                                                        Index Cond: (id = sp.picking_type_id)
+                                                        Filter: ((code)::text = 'incoming'::text)
+                                                        Rows Removed by Filter: 1
+                                                        Buffers: shared hit=50400
+Planning:
+  Buffers: shared hit=42
+Planning Time: 0.500 ms
+Execution Time: 29.635 ms

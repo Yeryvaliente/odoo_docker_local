@@ -1,0 +1,109 @@
+# =============================================================================
+# Stack de desarrollo INDEPENDIENTE para el repo victor-techrrific/odoo-custom-addons.
+#
+# Corre en paralelo al stack principal (docker-compose.yml, proyecto
+# "odoo-dev-env" que monta Odoocker) SIN colisionar en nada:
+#   - proyecto compose propio ...... odoo-custom      (fijado con `name:`)
+#   - contenedores propios ......... odoo-custom{,-postgres,-valkey}
+#   - puertos de host propios ...... +100 sobre el stack principal
+#   - volúmenes / red propios ...... auto-namespaced por el nombre de proyecto
+#   - repo montado ................. ../odoo-custom-addons -> /mnt/repo-addons:ro
+#
+# Levantar:  docker compose -f docker-compose.custom.yml up -d
+# Bajar:     docker compose -f docker-compose.custom.yml down
+# El `name:` de abajo fija el proyecto, así que NO hace falta pasar `-p`.
+# =============================================================================
+name: odoo-custom
+
+services:
+  postgres:
+    container_name: odoo-custom-postgres
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_DB=odoo_custom
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    restart: unless-stopped
+    ports:
+      - "5532:5432"   # host 5532 -> stack principal usa 5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: >
+      postgres -c logging_collector=off
+               -c log_destination=stderr
+               -c log_statement=ddl
+               -c log_min_duration_statement=200
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - odoo-custom-network
+
+  valkey:
+    container_name: odoo-custom-valkey
+    image: valkey/valkey:8.0-alpine
+    restart: unless-stopped
+    ports:
+      - "6479:6379"   # host 6479 -> stack principal usa 6379
+    volumes:
+      - valkey_data:/data
+    command: valkey-server --appendonly yes
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - odoo-custom-network
+
+  odoo:
+    container_name: odoo-custom
+    # Reutiliza la imagen YA funcional del stack principal (misma Dockerfile;
+    # entre stacks solo cambian addons/conf/puertos, que son runtime). Un build
+    # nuevo cache-cold rompe con "GEN_EMAIL" (drift cryptography/pyOpenSSL vía apt).
+    # Para reconstruir: `docker compose -f docker-compose.yml build odoo` en el stack principal.
+    image: odoo-dev-env-odoo:latest
+    depends_on:
+      - postgres
+      - valkey
+    ports:
+      - "8169:8069"   # http        -> stack principal usa 8069
+      - "8172:8072"   # websocket   -> stack principal usa 8072
+      - "5778:5678"   # debugpy     -> stack principal usa 5678
+    environment:
+      - HOST=postgres
+      - USER=odoo
+      - PASSWORD=odoo
+      - PGDATABASE=odoo_custom
+      - ODOO_RC=/etc/odoo/odoo.conf
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - VALKEY_HOST=valkey
+    volumes:
+      - odoo_data:/var/lib/odoo
+      - ./odoo.custom.conf:/etc/odoo/odoo.conf:ro
+      - ./extra-addons:/mnt/extra-addons
+      - ../odoo-custom-addons:/mnt/repo-addons:ro   # repo nuevo (módulos en la raíz)
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    command: ["odoo", "--dev=all"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - odoo-custom-network
+
+volumes:
+  postgres_data:
+  odoo_data:
+  valkey_data:
+
+networks:
+  odoo-custom-network:
+    driver: bridge

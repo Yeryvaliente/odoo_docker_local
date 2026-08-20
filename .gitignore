@@ -52,6 +52,7 @@ Thumbs.db
 *.local
 local_settings.py
 .env.local
+.env.docker
 
 # Database
 *.sql

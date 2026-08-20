@@ -14,13 +14,25 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
+    # Logs a stderr (visibles en `docker logs odoo-dev-postgres`), NO a archivos
+    # dentro del volumen. logging_collector=off evita que la carpeta
+    # /var/lib/postgresql/data/log vuelva a crecer (antes llegó a 13 GB).
+    # Solo se registran DDL y queries lentas (>200 ms) para no inundar la consola.
     command: >
-      postgres -c logging_collector=on
+      postgres -c logging_collector=off
                -c log_destination=stderr
-               -c log_statement=all
-               -c log_duration=on
-               -c log_min_duration_statement=0
+               -c log_statement=ddl
+               -c log_duration=off
+               -c log_min_duration_statement=200
                -c shared_preload_libraries='pg_stat_statements'
+    # Docker rota la consola automáticamente: máx ~50 MB retenidos (10 MB x 5).
+    # Equivale a conservar siempre los logs recientes (del día / últimos miles
+    # de líneas) sin que el disco crezca de forma indefinida.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     networks:
       - odoo-dev-network
 
@@ -33,6 +45,11 @@ services:
     volumes:
       - valkey_data:/data
     command: valkey-server --appendonly yes
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     networks:
       - odoo-dev-network
 
@@ -63,12 +80,80 @@ services:
       - ./extra-addons:/mnt/extra-addons
       - ./logs:/var/log/odoo
       - ../Odoocker/extra-addons:/mnt/repo-addons:ro  # Módulos del repositorio solo lectura
+      # Repo de Victor. Va DESPUÉS de repo-addons en addons_path a propósito: 18 de sus
+      # 24 módulos comparten nombre con los de Odoocker (twonary, twonary_mercado,
+      # twonary_upg...) y Odoo resuelve por primer path que matchea. Al ir último quedan
+      # sombreados y solo se ven los 6 que no colisionan (el stack contable IC).
+      - ../odoo-custom-addons:/mnt/custom-addons:ro
     restart: unless-stopped
     stdin_open: true  # Para debugging interactivo
     tty: true
     command: ["odoo", "--dev=all"]  # Modo desarrollo - recarga XML/QWeb sin reiniciar
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     networks:
       - odoo-dev-network
+
+  # ============================================
+  # odoo-api (NestJS) - Backend API Bridge
+  # ============================================
+  odoo-api:
+    container_name: odoo-dev-api
+    build:
+      context: ../odoo-api
+      dockerfile: Dockerfile
+      target: builder  # Usa el stage builder para dev (tiene todas las deps)
+    depends_on:
+      - odoo
+      - valkey
+    ports:
+      - "3000:3000"   # API principal
+      - "9229:9229"   # Debug port para Node.js
+    env_file:
+      - ../odoo-api/.env.docker
+    volumes:
+      - ../odoo-api/src:/usr/src/app/src        # Hot reload del código fuente
+      - ../odoo-api/tsconfig.json:/usr/src/app/tsconfig.json
+      - ../odoo-api/nest-cli.json:/usr/src/app/nest-cli.json
+      - api_node_modules:/usr/src/app/node_modules  # Persiste node_modules en volumen
+    working_dir: /usr/src/app
+    command: ["npx", "nest", "start", "--watch"]  # Watch mode para desarrollo
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    restart: unless-stopped
+    networks:
+      - odoo-dev-network
+
+  # ============================================
+  # mercado-console — UI para crear/editar órdenes Mercado v1_6
+  # ============================================
+  mercado-console:
+    container_name: odoo-dev-mercado-console
+    build:
+      context: ./mercado-order-console
+      dockerfile: Dockerfile
+    env_file:
+      - ./mercado-order-console/.env
+    ports:
+      # Solo en 127.0.0.1: el container tiene la API key de Odoo y no debe
+      # quedar expuesto a la red.
+      - "127.0.0.1:8900:8900"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - odoo-dev-network
+    profiles:
+      - tools  # Solo se ejecuta con --profile tools
 
   ngrok:
     container_name: odoo-dev-ngrok
@@ -105,6 +190,7 @@ volumes:
   odoo_data:
   valkey_data:
   pgadmin_data:
+  api_node_modules:
 
 networks:
   odoo-dev-network:

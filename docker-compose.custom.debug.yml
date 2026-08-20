@@ -1,0 +1,8 @@
+# Override de DEBUG para el stack custom (repo odoo-custom-addons).
+# Monta odoo.custom.debug.conf (workers=0, sin queue_job) para poder poner
+# breakpoints con debugpy, y arranca Odoo bajo debugpy (5678 interno → 5778 host).
+services:
+  odoo:
+    command: ["odoo", "debug", "--dev=all"]
+    volumes:
+      - ./odoo.custom.debug.conf:/etc/odoo/odoo.conf:ro

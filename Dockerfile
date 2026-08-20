@@ -91,10 +91,9 @@ RUN mkdir -p /usr/share/GeoIP && \
 
 # Install Odoo
 # Original version from external repository
-#ADD https://external-resources-techrrific.s3.us-east-1.amazonaws.com/odoo/odoo_18.0.e.20251202_all.deb /tmp/odoo.deb
-
+ADD https://external-resources-techrrific.s3.us-east-1.amazonaws.com/odoo/odoo_18.0.e.20260413_all.deb /tmp/odoo.deb
 # Local .deb file for testing (commented - use for local development)
- COPY ./odoo_18.0+e.20260218_all.deb /tmp/odoo.deb
+# COPY ./odoo_18.0+e.20260218_all.deb /tmp/odoo.deb
 
 RUN apt-get update \
     && apt-get -y install --no-install-recommends /tmp/odoo.deb \
